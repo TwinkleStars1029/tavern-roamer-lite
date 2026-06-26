@@ -1,4 +1,5 @@
 import {
+  ACCESS_TOKEN_KEY,
   DRIVE_SCOPE,
   LOCAL_BACKUP_KEY,
   buildChatEnvelope,
@@ -17,10 +18,39 @@ const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
 
+function loadStoredAccessToken(storage = globalThis.sessionStorage) {
+  if (!storage) return '';
+
+  try {
+    const token = JSON.parse(storage.getItem(ACCESS_TOKEN_KEY) || 'null');
+    if (!token?.accessToken || !token?.expiresAt) return '';
+    if (Date.now() >= token.expiresAt) {
+      storage.removeItem(ACCESS_TOKEN_KEY);
+      return '';
+    }
+    return token.accessToken;
+  } catch {
+    return '';
+  }
+}
+
+function saveAccessToken(accessToken, expiresIn = 3600, storage = globalThis.sessionStorage) {
+  if (!storage || !accessToken) return;
+
+  storage.setItem(ACCESS_TOKEN_KEY, JSON.stringify({
+    accessToken,
+    expiresAt: Date.now() + Math.max(60, Number(expiresIn || 3600) - 60) * 1000,
+  }));
+}
+
+function clearAccessToken(storage = globalThis.sessionStorage) {
+  storage?.removeItem(ACCESS_TOKEN_KEY);
+}
+
 let state = {
   settings: loadSettings(),
   tokenClient: null,
-  accessToken: '',
+  accessToken: loadStoredAccessToken(),
   versions: [],
   selectedVersionId: '',
   busy: false,
@@ -135,9 +165,9 @@ function loadScriptOnce(src) {
 }
 
 async function ensureTokenClient() {
-  const settings = loadSettings();
+  const settings = readSettingsFromForm() || loadSettings();
   if (!settings.googleClientId) {
-    throw new Error('請先填入 Google OAuth Client ID。');
+    throw new Error('請先填入 Google OAuth Client ID，或貼上後再按連線 / 上傳。');
   }
 
   await loadScriptOnce(GIS_SCRIPT_URL);
@@ -151,8 +181,10 @@ async function ensureTokenClient() {
           setStatus(`Google 授權失敗：${response.error}`);
           return;
         }
+        saveAccessToken(response.access_token, response.expires_in);
         state = { ...state, accessToken: response.access_token };
         setStatus('已連線 Google Drive');
+        showToast('success', '已連線 Google Drive');
       },
     });
   }
@@ -170,6 +202,7 @@ async function connectGoogleDrive() {
         return;
       }
 
+      saveAccessToken(response.access_token, response.expires_in);
       state = { ...state, accessToken: response.access_token };
       resolve();
     };
@@ -181,7 +214,7 @@ async function connectGoogleDrive() {
 
 async function driveFetch(url, options = {}) {
   if (!state.accessToken) {
-    await connectGoogleDrive();
+    throw new Error('尚未連線 Google Drive。請先按「連線 Google Drive」完成授權，再上傳。');
   }
 
   const response = await fetch(url, {
@@ -414,22 +447,54 @@ async function runAction(action) {
     await action();
   } catch (error) {
     console.error('[Tavern Roamer Lite]', error);
-    setStatus(error.message || String(error));
+    const message = error.message || String(error);
+    setStatus(message);
+    showToast('error', message);
   }
 }
 
-function saveSettingsFromForm(form) {
+function readSettingsFromForm() {
+  if (typeof document === 'undefined') return null;
+
+  const form = document.querySelector('#tavern-roamer-lite .tr-lite-settings');
+  if (!form) return null;
+
+  const nextSettings = {
+    googleClientId: form.googleClientId.value,
+    autoSyncChat: form.autoSyncChat.checked,
+    keepLatestN: form.keepLatestN.value,
+  };
+  const previousClientId = state.settings.googleClientId;
+  const settings = saveSettings(nextSettings);
+
   state = {
     ...state,
-    settings: saveSettings({
-      googleClientId: form.googleClientId.value,
-      autoSyncChat: form.autoSyncChat.checked,
-      keepLatestN: form.keepLatestN.value,
-    }),
-    tokenClient: null,
-    accessToken: '',
+    settings,
+    tokenClient: settings.googleClientId === previousClientId ? state.tokenClient : null,
+    accessToken: settings.googleClientId === previousClientId ? state.accessToken : '',
   };
+  if (settings.googleClientId !== previousClientId) clearAccessToken();
+
+  return settings;
+}
+
+function saveSettingsFromForm(form) {
+  const previousClientId = state.settings.googleClientId;
+  const settings = saveSettings({
+    googleClientId: form.googleClientId.value,
+    autoSyncChat: form.autoSyncChat.checked,
+    keepLatestN: form.keepLatestN.value,
+  });
+
+  state = {
+    ...state,
+    settings,
+    tokenClient: settings.googleClientId === previousClientId ? state.tokenClient : null,
+    accessToken: settings.googleClientId === previousClientId ? state.accessToken : '',
+  };
+  if (settings.googleClientId !== previousClientId) clearAccessToken();
   setStatus('設定已儲存');
+  showToast('success', '設定已儲存');
 }
 
 function versionLabel(version) {
@@ -454,7 +519,7 @@ function panelHtml() {
       <form class="tr-lite-settings">
         <label class="tr-lite-field tr-lite-field-wide">
           <span class="tr-lite-label">Google OAuth Client ID</span>
-          <input class="tr-lite-input" name="googleClientId" type="text" value="${escapeHtml(state.settings.googleClientId)}" autocomplete="off" />
+          <input class="tr-lite-input" name="googleClientId" type="text" value="${escapeHtml(state.settings.googleClientId)}" placeholder="1234567890-xxxx.apps.googleusercontent.com" autocomplete="off" />
         </label>
         <div class="tr-lite-row">
           <label class="tr-lite-check">
