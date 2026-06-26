@@ -412,31 +412,31 @@ function panelHtml() {
       </div>
 
       <form class="tr-lite-settings">
-        <label>
-          <span>Google OAuth Client ID</span>
-          <input name="googleClientId" type="text" value="${escapeHtml(state.settings.googleClientId)}" autocomplete="off" />
+        <label class="tr-lite-field tr-lite-field-wide">
+          <span class="tr-lite-label">Google OAuth Client ID</span>
+          <input class="tr-lite-input" name="googleClientId" type="text" value="${escapeHtml(state.settings.googleClientId)}" autocomplete="off" />
         </label>
         <div class="tr-lite-row">
           <label class="tr-lite-check">
-            <input name="autoSyncChat" type="checkbox" ${state.settings.autoSyncChat ? 'checked' : ''} />
+            <input class="tr-lite-checkbox" name="autoSyncChat" type="checkbox" ${state.settings.autoSyncChat ? 'checked' : ''} />
             <span>送出訊息後自動上傳</span>
           </label>
-          <label>
-            <span>保留版本</span>
-            <input name="keepLatestN" type="number" min="1" max="100" value="${state.settings.keepLatestN}" />
+          <label class="tr-lite-field tr-lite-keep-field">
+            <span class="tr-lite-label">保留版本</span>
+            <input class="tr-lite-input" name="keepLatestN" type="number" min="1" max="100" value="${state.settings.keepLatestN}" />
           </label>
         </div>
-        <button type="submit" ${disabled}>儲存設定</button>
+        <button class="tr-lite-button tr-lite-primary" type="submit" ${disabled}>儲存設定</button>
       </form>
 
       <div class="tr-lite-actions">
-        <button type="button" data-action="connect" ${disabled}>連線 Google Drive</button>
-        <button type="button" data-action="upload" ${disabled}>上傳目前聊天</button>
-        <button type="button" data-action="refresh" ${disabled}>檢查雲端版本</button>
+        <button class="tr-lite-button" type="button" data-action="connect" ${disabled}>連線 Google Drive</button>
+        <button class="tr-lite-button" type="button" data-action="upload" ${disabled}>上傳目前聊天</button>
+        <button class="tr-lite-button" type="button" data-action="refresh" ${disabled}>檢查雲端版本</button>
       </div>
 
       <div class="tr-lite-versions">
-        <select data-role="versions" ${disabled}>
+        <select class="tr-lite-select" data-role="versions" ${disabled}>
           <option value="">${state.versions.length ? '選擇雲端版本' : '尚未載入版本'}</option>
           ${state.versions.map((version) => `
             <option value="${escapeHtml(version.id)}" ${state.selectedVersionId === version.id ? 'selected' : ''}>
@@ -444,8 +444,8 @@ function panelHtml() {
             </option>
           `).join('')}
         </select>
-        <button type="button" data-action="apply" ${disabled}>下載並套用</button>
-        <button type="button" data-action="restore-local" ${disabled}>還原瀏覽器備份</button>
+        <button class="tr-lite-button" type="button" data-action="apply" ${disabled}>下載並套用</button>
+        <button class="tr-lite-button" type="button" data-action="restore-local" ${disabled}>還原瀏覽器備份</button>
       </div>
 
       <div class="tr-lite-status">${escapeHtml(state.status)}</div>
