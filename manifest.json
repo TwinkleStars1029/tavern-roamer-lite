@@ -1,0 +1,14 @@
+{
+  "display_name": "Tavern Roamer Lite",
+  "loading_order": 50,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Tavern Roamer contributors",
+  "version": "0.1.0",
+  "homePage": "https://github.com/TwinkleStars1029/TavernRoamer",
+  "auto_update": true,
+  "minimum_client_version": "1.0.0"
+}

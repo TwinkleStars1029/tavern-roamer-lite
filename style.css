@@ -1,0 +1,131 @@
+#tavern-roamer-lite {
+  margin: 12px 0;
+}
+
+.tavern-roamer-lite {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35));
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--SmartThemeBlurTintColor, rgba(20, 20, 20, 0.12));
+  color: var(--SmartThemeBodyColor, inherit);
+}
+
+.tr-lite-header,
+.tr-lite-row,
+.tr-lite-actions,
+.tr-lite-versions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tr-lite-header {
+  justify-content: space-between;
+}
+
+.tr-lite-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tr-lite-subtitle {
+  margin-top: 2px;
+  opacity: 0.72;
+  font-size: 12px;
+}
+
+.tr-lite-pill {
+  flex: 0 0 auto;
+  border: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.35));
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.tr-lite-pill.is-connected {
+  border-color: #2d9d78;
+  color: #2d9d78;
+}
+
+.tr-lite-settings {
+  display: grid;
+  gap: 10px;
+}
+
+.tr-lite-settings label,
+.tr-lite-versions {
+  min-width: 0;
+}
+
+.tr-lite-settings label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.tr-lite-check {
+  display: flex !important;
+  grid-template-columns: none;
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+.tr-lite-check input {
+  width: auto;
+}
+
+.tavern-roamer-lite input,
+.tavern-roamer-lite select {
+  min-width: 0;
+  width: 100%;
+}
+
+.tr-lite-row > label:last-child {
+  flex: 0 0 112px;
+}
+
+.tr-lite-actions,
+.tr-lite-versions {
+  flex-wrap: wrap;
+}
+
+.tr-lite-actions button,
+.tr-lite-versions button,
+.tr-lite-settings button {
+  min-height: 30px;
+}
+
+.tr-lite-versions select {
+  flex: 1 1 220px;
+}
+
+.tr-lite-status {
+  min-height: 20px;
+  border-top: 1px solid var(--SmartThemeBorderColor, rgba(128, 128, 128, 0.25));
+  padding-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.86;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .tr-lite-header,
+  .tr-lite-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tr-lite-row > label:last-child {
+    flex-basis: auto;
+  }
+
+  .tr-lite-actions button,
+  .tr-lite-versions button {
+    flex: 1 1 100%;
+  }
+}
