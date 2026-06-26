@@ -27,12 +27,36 @@ let state = {
   status: '尚未連線',
 };
 
+let getSillyTavernContext = null;
+
+const contextModuleReady = typeof window === 'undefined'
+  ? Promise.resolve()
+  : import('../../../st-context.js')
+    .then((module) => {
+      getSillyTavernContext = module.getContext;
+    })
+    .catch((error) => {
+      console.warn('[Tavern Roamer Lite] SillyTavern context module unavailable.', error);
+    });
+
+async function ensureContextReady() {
+  await contextModuleReady;
+}
+
 function getContext() {
-  return globalThis.SillyTavern?.getContext?.() || globalThis.getContext?.() || {};
+  return getSillyTavernContext?.()
+    || globalThis.SillyTavern?.getContext?.()
+    || globalThis.getContext?.()
+    || {};
 }
 
 function getRoleName(context) {
-  return context.character?.name
+  const character = Number.isInteger(Number(context.characterId))
+    ? context.characters?.[Number(context.characterId)]
+    : null;
+
+  return character?.name
+    || context.character?.name
     || context.name2
     || context.chara?.name
     || context.group?.name
@@ -59,7 +83,8 @@ function getChatContext() {
   };
 }
 
-function requireChatContext() {
+async function requireChatContext() {
+  await ensureContextReady();
   const current = getChatContext();
   if (!Array.isArray(current.chat)) {
     throw new Error('找不到目前聊天陣列，請先開啟一個聊天。');
@@ -71,6 +96,17 @@ function requireChatContext() {
 function setStatus(status) {
   state = { ...state, status };
   render();
+}
+
+function showToast(type, message, title = 'Tavern Roamer Lite') {
+  try {
+    const toast = globalThis.toastr?.[type];
+    if (typeof toast === 'function') {
+      toast(message, title);
+    }
+  } catch {
+    // Toasts are optional; the panel status remains the source of truth.
+  }
 }
 
 function setBusy(busy) {
@@ -238,7 +274,7 @@ async function uploadJson(folderId, fileName, value) {
 }
 
 async function listVersionsForCurrentChat() {
-  const { roleName, chatId } = requireChatContext();
+  const { roleName, chatId } = await requireChatContext();
   const folderId = await ensureFolderPath(makeDrivePath({ roleName, chatId }));
   const query = buildDriveQuery([
     `'${escapeDriveQueryValue(folderId)}' in parents`,
@@ -270,7 +306,7 @@ async function pruneOldVersions(versions) {
 }
 
 async function uploadCurrentChat({ silent = false } = {}) {
-  const { roleName, chatId, chat } = requireChatContext();
+  const { roleName, chatId, chat } = await requireChatContext();
   setBusy(true);
 
   try {
@@ -288,7 +324,11 @@ async function uploadCurrentChat({ silent = false } = {}) {
       versions: sortVersionsDescending(versions).slice(0, state.settings.keepLatestN),
       selectedVersionId: versions[0]?.id || '',
     };
-    if (!silent) setStatus(`已上傳目前聊天：${uploadDate}`);
+    if (!silent) {
+      const message = `已上傳目前聊天：${uploadDate}`;
+      setStatus(message);
+      showToast('success', message);
+    }
   } finally {
     setBusy(false);
   }
@@ -335,7 +375,7 @@ async function applySelectedVersion() {
     throw new Error('請先選擇一個雲端版本。');
   }
 
-  const { context, chat } = requireChatContext();
+  const { context, chat } = await requireChatContext();
   setBusy(true);
 
   try {
@@ -349,7 +389,7 @@ async function applySelectedVersion() {
 
     chat.splice(0, chat.length, ...nextChat);
     await persistChat(context);
-    context.eventSource?.emit?.(context.event_types?.CHAT_CHANGED);
+    context.eventSource?.emit?.(context.eventTypes?.CHAT_CHANGED || context.event_types?.CHAT_CHANGED);
     setStatus(`已套用雲端版本，共 ${nextChat.length} 則訊息`);
   } finally {
     setBusy(false);
@@ -362,10 +402,10 @@ async function restoreBrowserBackup() {
     throw new Error('瀏覽器中沒有可還原的本機備份。');
   }
 
-  const { context, chat } = requireChatContext();
+  const { context, chat } = await requireChatContext();
   chat.splice(0, chat.length, ...backup.chat);
   await persistChat(context);
-  context.eventSource?.emit?.(context.event_types?.CHAT_CHANGED);
+  context.eventSource?.emit?.(context.eventTypes?.CHAT_CHANGED || context.event_types?.CHAT_CHANGED);
   setStatus(`已還原瀏覽器備份：${backup.backupDate || '未知時間'}`);
 }
 
@@ -501,7 +541,7 @@ function render() {
 function registerAutoSync() {
   const context = getContext();
   const eventSource = context.eventSource;
-  const eventTypes = context.event_types;
+  const eventTypes = context.eventTypes || context.event_types;
 
   if (!eventSource?.on || !eventTypes?.MESSAGE_SENT) return;
 
@@ -513,7 +553,7 @@ function registerAutoSync() {
 
 function mount() {
   render();
-  registerAutoSync();
+  contextModuleReady.finally(registerAutoSync);
 }
 
 if (typeof document !== 'undefined') {
