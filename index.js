@@ -2,6 +2,7 @@ import {
   ACCESS_TOKEN_KEY,
   DRIVE_SCOPE,
   LOCAL_BACKUP_KEY,
+  OAUTH_STATE_KEY,
   buildChatEnvelope,
   buildDriveQuery,
   escapeDriveQueryValue,
@@ -14,9 +15,10 @@ import {
   versionFromDriveFile,
 } from './core.js';
 
-const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
+const GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
+const OAUTH_STATE_PREFIX = 'tavern-roamer-lite:';
 
 function loadStoredAccessToken(storage = globalThis.sessionStorage) {
   if (!storage) return '';
@@ -47,14 +49,58 @@ function clearAccessToken(storage = globalThis.sessionStorage) {
   storage?.removeItem(ACCESS_TOKEN_KEY);
 }
 
+function makeOAuthState() {
+  const random = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  return `${OAUTH_STATE_PREFIX}${random}`;
+}
+
+function getRedirectUri() {
+  return `${globalThis.location.origin}${globalThis.location.pathname}`;
+}
+
+function handleOAuthRedirectResponse() {
+  if (typeof window === 'undefined' || !window.location.hash) {
+    return { accessToken: '', status: '' };
+  }
+
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const accessToken = hash.get('access_token') || '';
+  const error = hash.get('error') || '';
+  const stateParam = hash.get('state') || '';
+  const expectedState = window.sessionStorage?.getItem(OAUTH_STATE_KEY) || '';
+
+  if (!accessToken && !error) {
+    return { accessToken: '', status: '' };
+  }
+
+  window.sessionStorage?.removeItem(OAUTH_STATE_KEY);
+  window.history?.replaceState?.(null, document.title, `${window.location.pathname}${window.location.search}`);
+
+  if (!stateParam.startsWith(OAUTH_STATE_PREFIX) || stateParam !== expectedState) {
+    clearAccessToken();
+    return { accessToken: '', status: 'Google 授權回傳狀態不一致，請重新連線。' };
+  }
+
+  if (error) {
+    clearAccessToken();
+    return { accessToken: '', status: `Google 授權失敗：${error}` };
+  }
+
+  const expiresIn = Number(hash.get('expires_in') || 3600);
+  saveAccessToken(accessToken, expiresIn);
+  return { accessToken, status: '已連線 Google Drive' };
+}
+
+const oauthRedirectResult = handleOAuthRedirectResponse();
+
 let state = {
   settings: loadSettings(),
   tokenClient: null,
-  accessToken: loadStoredAccessToken(),
+  accessToken: oauthRedirectResult.accessToken || loadStoredAccessToken(),
   versions: [],
   selectedVersionId: '',
   busy: false,
-  status: '尚未連線',
+  status: oauthRedirectResult.status || (oauthRedirectResult.accessToken || loadStoredAccessToken() ? '已連線 Google Drive' : '尚未連線'),
 };
 
 let getSillyTavernContext = null;
@@ -144,72 +190,36 @@ function setBusy(busy) {
   render();
 }
 
-function loadScriptOnce(src) {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      existing.addEventListener('load', resolve, { once: true });
-      existing.addEventListener('error', reject, { once: true });
-      if (globalThis.google?.accounts?.oauth2) resolve();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.defer = true;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('Google Identity Services 載入失敗。'));
-    document.head.append(script);
-  });
-}
-
-async function ensureTokenClient() {
+function startGoogleOAuthRedirect() {
   const settings = readSettingsFromForm() || loadSettings();
   if (!settings.googleClientId) {
     throw new Error('請先填入 Google OAuth Client ID，或貼上後再按連線 / 上傳。');
   }
 
-  await loadScriptOnce(GIS_SCRIPT_URL);
+  const oauthState = makeOAuthState();
+  globalThis.sessionStorage?.setItem(OAUTH_STATE_KEY, oauthState);
 
-  if (!state.tokenClient) {
-    state.tokenClient = globalThis.google.accounts.oauth2.initTokenClient({
-      client_id: settings.googleClientId,
-      scope: DRIVE_SCOPE,
-      callback: (response) => {
-        if (response.error) {
-          setStatus(`Google 授權失敗：${response.error}`);
-          return;
-        }
-        saveAccessToken(response.access_token, response.expires_in);
-        state = { ...state, accessToken: response.access_token };
-        setStatus('已連線 Google Drive');
-        showToast('success', '已連線 Google Drive');
-      },
-    });
-  }
+  const params = new URLSearchParams({
+    client_id: settings.googleClientId,
+    redirect_uri: getRedirectUri(),
+    response_type: 'token',
+    scope: DRIVE_SCOPE,
+    include_granted_scopes: 'true',
+    prompt: 'consent',
+    state: oauthState,
+  });
 
-  return state.tokenClient;
+  globalThis.location.assign(`${GOOGLE_OAUTH_URL}?${params}`);
 }
 
 async function connectGoogleDrive() {
-  const tokenClient = await ensureTokenClient();
-
-  await new Promise((resolve, reject) => {
-    tokenClient.callback = (response) => {
-      if (response.error) {
-        reject(new Error(`Google 授權失敗：${response.error}`));
-        return;
-      }
-
-      saveAccessToken(response.access_token, response.expires_in);
-      state = { ...state, accessToken: response.access_token };
-      resolve();
-    };
-    tokenClient.requestAccessToken({ prompt: state.accessToken ? '' : 'consent' });
-  });
+  if (!state.accessToken) {
+    startGoogleOAuthRedirect();
+    return;
+  }
 
   setStatus('已連線 Google Drive');
+  showToast('success', '已連線 Google Drive');
 }
 
 async function driveFetch(url, options = {}) {

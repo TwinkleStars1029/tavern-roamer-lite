@@ -38,7 +38,16 @@ SillyTavernSync/{role_name}/{chat_id}/chat/{upload_date}.json
 
 ```text
 http://localhost:8000
+http://127.0.0.1:8000
 https://your-cloud-tavern-host
+```
+
+* 已授權的重新導向 URI：
+
+```text
+http://127.0.0.1:8000/
+http://localhost:8000/
+https://your-cloud-tavern-host/
 ```
 
 瀏覽器中不會使用 client secret。

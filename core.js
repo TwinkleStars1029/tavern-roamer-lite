@@ -3,6 +3,7 @@ export const ROOT_FOLDER_NAME = 'SillyTavernSync';
 export const SETTINGS_KEY = 'tavern-roamer-lite:settings';
 export const LOCAL_BACKUP_KEY = 'tavern-roamer-lite:last-chat-backup';
 export const ACCESS_TOKEN_KEY = 'tavern-roamer-lite:access-token';
+export const OAUTH_STATE_KEY = 'tavern-roamer-lite:oauth-state';
 
 export const DEFAULT_SETTINGS = Object.freeze({
   googleClientId: '',
